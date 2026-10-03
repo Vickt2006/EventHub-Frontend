@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
 import { api } from "../services/api";
 
 function formatDate(value) {
@@ -55,7 +54,12 @@ export default function EventDetails() {
       ]);
 
       setEvent(eventData);
-      setSeats(seatsData);
+
+      setSeats(
+        Array.isArray(seatsData)
+          ? seatsData
+          : []
+      );
     } catch (err) {
       setError(err.message || "Unable to load event.");
     } finally {
@@ -207,6 +211,7 @@ export default function EventDetails() {
 
               <div>
                 <small>Date</small>
+
                 <strong>
                   {formatDate(event.startTime)}
                 </strong>
@@ -218,6 +223,7 @@ export default function EventDetails() {
 
               <div>
                 <small>Time</small>
+
                 <strong>
                   {formatTime(event.startTime)}
                 </strong>
@@ -229,6 +235,7 @@ export default function EventDetails() {
 
               <div>
                 <small>Language</small>
+
                 <strong>
                   {event.language || "English"}
                 </strong>
@@ -240,6 +247,7 @@ export default function EventDetails() {
 
               <div>
                 <small>Genre</small>
+
                 <strong>
                   {event.genre || "Live Event"}
                 </strong>
@@ -251,6 +259,7 @@ export default function EventDetails() {
 
               <div>
                 <small>Age Rating</small>
+
                 <strong>
                   {event.ageRating || "All Ages"}
                 </strong>
@@ -370,101 +379,116 @@ export default function EventDetails() {
           {/* SEAT MAP */}
           <div className="seat-map">
 
-            {[
-              "A",
-              "B",
-              "C",
-              "D",
-              "E",
-              "F",
-              "G",
-              "H",
-              "I",
-              "J"
-            ].map((row) => {
+            {Array.from(
+              new Set(
+                seats
+                  .map((seat) => seat.rowLabel)
+                  .filter(Boolean)
+              )
+            )
+              .sort((a, b) =>
+                a.localeCompare(
+                  b,
+                  undefined,
+                  { numeric: true }
+                )
+              )
+              .map((row) => {
 
-              const rowSeats = seats.filter(
-                (seat) =>
-                  seat.rowLabel === row
-              );
+                const rowSeats = seats
+                  .filter(
+                    (seat) =>
+                      seat.rowLabel === row
+                  )
+                  .sort((a, b) => {
+                    const aIndex =
+                      Number(a.seatIndex || 0);
 
-              if (rowSeats.length === 0) {
-                return null;
-              }
+                    const bIndex =
+                      Number(b.seatIndex || 0);
 
-              return (
-                <div
-                  className="seat-row"
-                  key={row}
-                >
+                    return aIndex - bIndex;
+                  });
 
-                  <div className="row-label">
-                    {row}
-                  </div>
+                if (rowSeats.length === 0) {
+                  return null;
+                }
 
-                  <div className="row-seats">
+                return (
+                  <div
+                    className="seat-row"
+                    key={row}
+                  >
 
-                    {rowSeats.map((seat) => {
+                    <div className="row-label">
+                      {row}
+                    </div>
 
-                      const isSelected =
-                        selectedSeats.includes(
-                          seat.id
+                    <div className="row-seats">
+
+                      {rowSeats.map((seat) => {
+
+                        const isSelected =
+                          selectedSeats.includes(
+                            seat.id
+                          );
+
+                        const isBooked =
+                          seat.status !==
+                          "AVAILABLE";
+
+                        const seatPrice =
+                          Number(
+                            event?.basePrice || 0
+                          ) *
+                          Number(
+                            seat.priceMultiplier || 1
+                          );
+
+                        return (
+                          <button
+                            key={seat.id}
+                            type="button"
+                            disabled={isBooked}
+                            onClick={() =>
+                              toggleSeat(seat)
+                            }
+                            className={[
+                              "seat-button",
+                              seat.category?.toLowerCase(),
+                              isSelected
+                                ? "seat-selected"
+                                : "",
+                              isBooked
+                                ? "seat-booked"
+                                : ""
+                            ].join(" ")}
+                          >
+
+                            <span>
+                              {seat.seatNumber}
+                            </span>
+
+                            <small>
+                              ₹
+                              {formatMoney(
+                                seatPrice
+                              )}
+                            </small>
+
+                          </button>
                         );
+                      })}
 
-                      const isBooked =
-                        seat.status !==
-                        "AVAILABLE";
+                    </div>
 
-                      return (
-                        <button
-                          key={seat.id}
-                          type="button"
-                          disabled={isBooked}
-                          onClick={() =>
-                            toggleSeat(seat)
-                          }
-                          className={[
-                            "seat-button",
-                            seat.category?.toLowerCase(),
-                            isSelected
-                              ? "seat-selected"
-                              : "",
-                            isBooked
-                              ? "seat-booked"
-                              : ""
-                          ].join(" ")}
-                        >
-
-                          <span>
-                            {seat.seatNumber}
-                          </span>
-
-                          <small>
-                            ₹
-                            {formatMoney(
-                              Number(
-                                event.basePrice || 0
-                              ) *
-                                Number(
-                                  seat.priceMultiplier ||
-                                    1
-                                )
-                            )}
-                          </small>
-
-                        </button>
-                      );
-                    })}
+                    <div className="row-label">
+                      {row}
+                    </div>
 
                   </div>
-
-                  <div className="row-label">
-                    {row}
-                  </div>
-
-                </div>
-              );
-            })}
+                );
+              })}
 
           </div>
 

@@ -1,1109 +1,687 @@
 import React, { useEffect, useState } from "react";
-
 import { api } from "../../services/api";
 
 const EVENT_TYPES = [
-
   { value: "MOVIE", label: "Movie" },
-
   { value: "CONCERT", label: "Concert" },
-
   { value: "SPORTS", label: "Sports" },
-
   { value: "COMEDY", label: "Comedy" },
-
   { value: "THEATRE", label: "Theatre" },
-
   { value: "COLLEGE_EVENT", label: "College Event" },
-
   { value: "ACTIVITY", label: "Activity" },
-
   { value: "WORKSHOP", label: "Workshop" },
-
   { value: "CONFERENCE", label: "Conference" },
-
   { value: "OTHER", label: "Other" }
-
 ];
 
 const EMPTY_FORM = {
-
   title: "",
-
   description: "",
-
   eventType: "CONCERT",
-
   startTime: "",
-
   endTime: "",
-
   city: "",
-
   language: "",
-
   genre: "",
-
   ageRating: "",
-
   posterUrl: "",
-
   bannerUrl: "",
-
   basePrice: "",
-
   taxPercent: "18",
-
   venueId: ""
-
 };
 
 export default function OrganizerDashboard() {
-
   const [dashboard, setDashboard] = useState(null);
-
   const [bookingStats, setBookingStats] = useState(null);
-
   const [events, setEvents] = useState([]);
-
   const [performance, setPerformance] = useState([]);
+  const [venues, setVenues] = useState([]);
 
   const [loading, setLoading] = useState(true);
-
   const [refreshing, setRefreshing] = useState(false);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-
   const [eventForm, setEventForm] = useState(EMPTY_FORM);
-
   const [creating, setCreating] = useState(false);
-
   const [createError, setCreateError] = useState("");
-
   const [createSuccess, setCreateSuccess] = useState("");
 
   const [showEditModal, setShowEditModal] = useState(false);
-
   const [editingEventId, setEditingEventId] = useState(null);
-
   const [editing, setEditing] = useState(false);
-
   const [editError, setEditError] = useState("");
-
   const [editSuccess, setEditSuccess] = useState("");
 
   const [showBookingsModal, setShowBookingsModal] = useState(false);
-
   const [selectedBookingEvent, setSelectedBookingEvent] = useState(null);
-
   const [eventBookings, setEventBookings] = useState([]);
-
   const [bookingSummary, setBookingSummary] = useState(null);
-
   const [bookingsLoading, setBookingsLoading] = useState(false);
-
   const [bookingsError, setBookingsError] = useState("");
 
   useEffect(() => {
-
     loadDashboard();
-
   }, []);
 
   async function loadDashboard(showRefreshLoader = false) {
-
     try {
-
       if (showRefreshLoader) {
-
         setRefreshing(true);
-
       } else {
-
         setLoading(true);
-
       }
 
       const [
-
         dashboardData,
-
         statsData,
-
         eventsData,
-
-        performanceData
-
+        performanceData,
+        venuesData
       ] = await Promise.all([
-
         api("/api/events/organizer/dashboard"),
-
         api("/api/events/organizer/booking-stats"),
-
         api("/api/events/organizer/my-events"),
-
-        api("/api/events/organizer/event-performance")
-
+        api("/api/events/organizer/event-performance"),
+        api("/api/venues/public")
       ]);
 
       setDashboard(dashboardData);
-
       setBookingStats(statsData);
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      setPerformance(
+        Array.isArray(performanceData) ? performanceData : []
+      );
 
-      setEvents(eventsData || []);
+    const venueList = Array.isArray(venuesData)
+  ? venuesData.filter((venue) => venue.active !== false)
+  : [];
 
-      setPerformance(performanceData || []);
+const uniqueVenues = Array.from(
+  new Map(
+    venueList.map((venue) => [
+      `${venue.name?.trim().toLowerCase()}-${venue.city?.trim().toLowerCase()}`,
+      venue
+    ])
+  ).values()
+);
 
+setVenues(uniqueVenues);
     } catch (error) {
-
       console.error("Organizer dashboard error:", error);
-
     } finally {
-
       setLoading(false);
-
       setRefreshing(false);
-
     }
-
   }
 
   function updateForm(field, value) {
-
     setEventForm((current) => ({
-
       ...current,
-
       [field]: value
-
     }));
 
     if (createError) {
-
       setCreateError("");
-
     }
 
+    if (editError) {
+      setEditError("");
+    }
   }
 
   function openCreateModal() {
-
     setEventForm(EMPTY_FORM);
-
     setCreateError("");
-
     setCreateSuccess("");
-
     setShowCreateModal(true);
-
   }
 
   function closeCreateModal() {
-
     if (creating) return;
 
     setShowCreateModal(false);
-
     setCreateError("");
-
     setCreateSuccess("");
-
   }
 
   function toInputDateTime(value) {
-
     if (!value) return "";
 
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) return "";
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
 
     const pad = (number) => String(number).padStart(2, "0");
 
-   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-
+    return `${date.getFullYear()}-${pad(
+      date.getMonth() + 1
+    )}-${pad(date.getDate())}T${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
   }
 
   function openEditModal(event) {
-
     setEditingEventId(event.id);
-
     setEditError("");
-
     setEditSuccess("");
 
     setEventForm({
-
       title: event.title || "",
-
       description: event.description || "",
-
       eventType: event.eventType || "CONCERT",
-
       startTime: toInputDateTime(event.startTime),
-
       endTime: toInputDateTime(event.endTime),
-
       city: event.city || "",
-
       language: event.language || "",
-
       genre: event.genre || "",
-
       ageRating: event.ageRating || "",
-
       posterUrl: event.posterUrl || "",
-
       bannerUrl: event.bannerUrl || "",
-
       basePrice: event.basePrice ?? "",
-
       taxPercent: event.taxPercent ?? "18",
-
       venueId: event.venue?.id ?? event.venueId ?? ""
-
     });
 
     setShowEditModal(true);
-
   }
 
   function closeEditModal() {
-
     if (editing) return;
 
     setShowEditModal(false);
-
     setEditingEventId(null);
-
     setEditError("");
-
     setEditSuccess("");
+  }
 
+  function validateEventForm() {
+    if (!eventForm.title.trim()) {
+      return "Event title is required.";
+    }
+
+    if (!eventForm.eventType) {
+      return "Please select event type.";
+    }
+
+    if (!eventForm.startTime) {
+      return "Start date and time is required.";
+    }
+
+    if (
+      eventForm.endTime &&
+      new Date(eventForm.endTime) <= new Date(eventForm.startTime)
+    ) {
+      return "End date/time must be after start date/time.";
+    }
+
+    if (!eventForm.city.trim()) {
+      return "City is required.";
+    }
+
+    if (!eventForm.basePrice) {
+      return "Base price is required.";
+    }
+
+    if (Number(eventForm.basePrice) <= 0) {
+      return "Base price must be greater than 0.";
+    }
+
+    if (
+      eventForm.taxPercent !== "" &&
+      Number(eventForm.taxPercent) < 0
+    ) {
+      return "Tax percent cannot be negative.";
+    }
+
+    if (!eventForm.venueId) {
+      return "Please select a venue.";
+    }
+
+    if (Number(eventForm.venueId) <= 0) {
+      return "Please select a valid venue.";
+    }
+
+    return "";
   }
 
   async function handleEditEvent(event) {
-
     event.preventDefault();
 
     setEditError("");
-
     setEditSuccess("");
 
     const validationError = validateEventForm();
 
     if (validationError) {
-
       setEditError(validationError);
-
       return;
-
     }
 
     try {
-
       setEditing(true);
 
       const payload = {
-
         title: eventForm.title.trim(),
-
         description: eventForm.description.trim() || null,
-
         eventType: eventForm.eventType,
-
         startTime: eventForm.startTime,
-
         endTime: eventForm.endTime || null,
-
         city: eventForm.city.trim(),
-
         language: eventForm.language.trim() || null,
-
         genre: eventForm.genre.trim() || null,
-
         ageRating: eventForm.ageRating.trim() || null,
-
         posterUrl: eventForm.posterUrl.trim() || null,
-
         bannerUrl: eventForm.bannerUrl.trim() || null,
-
         basePrice: Number(eventForm.basePrice),
-
-        taxPercent: eventForm.taxPercent === "" ? null : Number(eventForm.taxPercent),
-
+        taxPercent:
+          eventForm.taxPercent === ""
+            ? null
+            : Number(eventForm.taxPercent),
         venueId: Number(eventForm.venueId)
-
       };
 
-      await api(`/api/events/${editingEventId}`, { method: "PATCH", body: payload });
+      console.log("EDIT EVENT PAYLOAD:", payload);
+
+      await api(`/api/events/${editingEventId}`, {
+        method: "PATCH",
+        body: payload
+      });
 
       setEditSuccess("Event updated successfully!");
 
       await loadDashboard();
 
       setTimeout(() => {
-
         setShowEditModal(false);
-
         setEditingEventId(null);
-
         setEditSuccess("");
-
         setEventForm(EMPTY_FORM);
-
       }, 900);
-
     } catch (error) {
-
       console.error("EDIT EVENT ERROR:", error);
 
-      setEditError(error?.message || "Unable to update event. Please try again.");
-
+      setEditError(
+        error?.message ||
+          "Unable to update event. Please try again."
+      );
     } finally {
-
       setEditing(false);
-
     }
-
-  }
-
-  function validateEventForm() {
-
-    if (!eventForm.title.trim()) {
-
-      return "Event title is required.";
-
-    }
-
-    if (!eventForm.eventType) {
-
-      return "Please select event type.";
-
-    }
-
-    if (!eventForm.startTime) {
-
-      return "Start date and time is required.";
-
-    }
-
-    if (
-
-      eventForm.endTime &&
-
-      new Date(eventForm.endTime) <= new Date(eventForm.startTime)
-
-    ) {
-
-      return "End date/time must be after start date/time.";
-
-    }
-
-    if (!eventForm.city.trim()) {
-
-      return "City is required.";
-
-    }
-
-    if (!eventForm.basePrice) {
-
-      return "Base price is required.";
-
-    }
-
-    if (Number(eventForm.basePrice) <= 0) {
-
-      return "Base price must be greater than 0.";
-
-    }
-
-    if (
-
-      eventForm.taxPercent !== "" &&
-
-      Number(eventForm.taxPercent) < 0
-
-    ) {
-
-      return "Tax percent cannot be negative.";
-
-    }
-
-    if (!eventForm.venueId) {
-
-      return "Venue ID is required.";
-
-    }
-
-    if (Number(eventForm.venueId) <= 0) {
-
-      return "Please enter a valid venue ID.";
-
-    }
-
-    return "";
-
   }
 
   async function openBookingsModal(event) {
-
     setSelectedBookingEvent(event);
-
     setShowBookingsModal(true);
-
     setBookingsLoading(true);
-
     setBookingsError("");
-
     setEventBookings([]);
-
     setBookingSummary(null);
 
     try {
-
       const [bookings, summary] = await Promise.all([
-
         api(`/api/events/${event.id}/bookings`),
-
         api(`/api/events/${event.id}/booking-summary`)
-
       ]);
 
-      setEventBookings(Array.isArray(bookings) ? bookings : []);
+      setEventBookings(
+        Array.isArray(bookings) ? bookings : []
+      );
 
       setBookingSummary(summary || null);
-
     } catch (error) {
-
       console.error("Event bookings error:", error);
 
-      setBookingsError(error?.message || "Unable to load booking details.");
-
+      setBookingsError(
+        error?.message ||
+          "Unable to load booking details."
+      );
     } finally {
-
       setBookingsLoading(false);
-
     }
-
   }
 
   function closeBookingsModal() {
-
     if (bookingsLoading) return;
 
     setShowBookingsModal(false);
-
     setSelectedBookingEvent(null);
-
     setEventBookings([]);
-
     setBookingSummary(null);
-
     setBookingsError("");
-
   }
 
   async function handleCreateEvent(event) {
-
     event.preventDefault();
 
     setCreateError("");
-
     setCreateSuccess("");
 
     const validationError = validateEventForm();
 
     if (validationError) {
-
       setCreateError(validationError);
-
       return;
-
     }
 
     try {
-
       setCreating(true);
 
-      /*
-
-       * IMPORTANT:
-
-       * Do NOT use JSON.stringify() here.
-
-       *
-
-       * api() receives the JavaScript object directly.
-
-       *
-
-       * Backend expects:
-
-       * EventDtos.Create
-
-       */
-
       const payload = {
-
         title: eventForm.title.trim(),
-
-        description:
-
-          eventForm.description.trim() || null,
-
+        description: eventForm.description.trim() || null,
         eventType: eventForm.eventType,
-
         startTime: eventForm.startTime,
-
-        endTime:
-
-          eventForm.endTime || null,
-
+        endTime: eventForm.endTime || null,
         city: eventForm.city.trim(),
-
-        language:
-
-          eventForm.language.trim() || null,
-
-        genre:
-
-          eventForm.genre.trim() || null,
-
-        ageRating:
-
-          eventForm.ageRating.trim() || null,
-
-        posterUrl:
-
-          eventForm.posterUrl.trim() || null,
-
-        bannerUrl:
-
-          eventForm.bannerUrl.trim() || null,
-
+        language: eventForm.language.trim() || null,
+        genre: eventForm.genre.trim() || null,
+        ageRating: eventForm.ageRating.trim() || null,
+        posterUrl: eventForm.posterUrl.trim() || null,
+        bannerUrl: eventForm.bannerUrl.trim() || null,
         basePrice: Number(eventForm.basePrice),
-
         taxPercent:
-
           eventForm.taxPercent === ""
-
             ? null
-
             : Number(eventForm.taxPercent),
-
         venueId: Number(eventForm.venueId)
-
       };
 
       console.log("CREATE EVENT PAYLOAD:", payload);
 
       const result = await api("/api/events", {
-
         method: "POST",
-
         body: payload
-
       });
 
       console.log("CREATE EVENT RESPONSE:", result);
 
       setCreateSuccess(
-
         "Event created successfully!"
-
       );
-
-      /*
-
-       * Refresh dashboard after successful creation.
-
-       */
 
       await loadDashboard();
 
-      /*
-
-       * Keep success message visible briefly,
-
-       * then close modal.
-
-       */
-
       setTimeout(() => {
-
         setShowCreateModal(false);
-
         setCreateSuccess("");
-
         setEventForm(EMPTY_FORM);
-
       }, 1000);
-
     } catch (error) {
-
       console.error("CREATE EVENT ERROR:", error);
 
       setCreateError(
-
         error?.message ||
-
-        "Unable to create event. Please try again."
-
+          "Unable to create event. Please try again."
       );
-
     } finally {
-
       setCreating(false);
-
     }
-
   }
 
   function formatDate(value) {
-
     if (!value) {
-
       return "Date not available";
-
     }
 
     return new Date(value).toLocaleDateString(
-
       "en-IN",
-
       {
-
         day: "2-digit",
-
         month: "short",
-
         year: "numeric"
-
       }
-
     );
-
   }
 
   function formatTime(value) {
-
     if (!value) {
-
       return "";
-
     }
 
     return new Date(value).toLocaleTimeString(
-
       "en-IN",
-
       {
-
         hour: "2-digit",
-
         minute: "2-digit"
-
       }
-
     );
-
   }
 
   function formatMoney(value) {
-
     return Number(value || 0).toLocaleString(
-
       "en-IN",
-
       {
-
         maximumFractionDigits: 2
-
       }
-
     );
+  }
 
+  function formatLabel(value) {
+    return String(value || "").replaceAll("_", " ");
   }
 
   function statusClass(status) {
-
     if (status === "PUBLISHED") {
-
       return "published";
-
     }
 
     if (status === "PENDING_APPROVAL") {
-
       return "pending";
-
     }
 
     if (status === "CANCELLED") {
-
       return "cancelled";
-
     }
 
     if (status === "COMPLETED") {
-
       return "completed";
-
     }
 
     return "draft";
-
   }
 
   function eventIcon(type) {
-
     switch (type) {
-
       case "MOVIE":
-
         return "🎬";
 
       case "CONCERT":
-
         return "🎵";
 
       case "SPORTS":
-
         return "🏟️";
 
       case "COMEDY":
-
         return "😂";
 
       case "THEATRE":
-
         return "🎭";
 
       case "COLLEGE_EVENT":
-
         return "🎓";
 
       case "ACTIVITY":
-
         return "⚡";
 
       case "WORKSHOP":
-
         return "🛠️";
 
       case "CONFERENCE":
-
         return "💼";
 
       default:
-
         return "✨";
-
     }
-
   }
 
   if (loading) {
-
     return (
-
       <main className="organizer-page">
-
         <div className="organizer-loading">
-
           <div className="organizer-spinner"></div>
 
           <h3>
-
             Loading organizer dashboard
-
           </h3>
 
           <p>
-
             Preparing your event analytics...
-
           </p>
-
         </div>
-
       </main>
-
     );
-
   }
 
   return (
-
     <main className="organizer-page">
 
-      {/* =========================================
-
-          BACKGROUND
-
-      ========================================== */}
+      {/* BACKGROUND */}
 
       <div className="organizer-orb organizer-orb-one"></div>
-
       <div className="organizer-orb organizer-orb-two"></div>
 
-      {/* =========================================
-
-          HEADER
-
-      ========================================== */}
+      {/* HEADER */}
 
       <header className="organizer-header">
-
         <div>
-
           <div className="organizer-eyebrow">
-
             <span></span>
-
             ORGANIZER CENTER
-
           </div>
 
           <h1>
-
             Organizer{" "}
-
             <span>Dashboard</span>
-
           </h1>
 
           <p>
-
             Manage your events and track your
-
             booking performance.
-
           </p>
-
         </div>
 
         <div className="organizer-header-actions">
 
           <button
-
             type="button"
-
             className="organizer-create-btn"
-
             onClick={openCreateModal}
-
           >
-
             <span>＋</span>
-
             Create Event
-
           </button>
 
           <button
-
             type="button"
-
             className="organizer-refresh"
-
             onClick={() => loadDashboard(true)}
-
             disabled={refreshing}
-
           >
-
             <span>
-
               {refreshing ? "◌" : "↻"}
-
             </span>
 
             {refreshing
-
               ? "Refreshing..."
-
               : "Refresh"}
-
           </button>
 
         </div>
-
       </header>
 
-      {/* =========================================
-
-          STATS
-
-      ========================================== */}
+      {/* STATS */}
 
       <section className="organizer-stats">
 
         <div className="organizer-stat-card">
-
           <div className="organizer-stat-icon purple">
-
             ◆
-
           </div>
 
           <div>
-
-            <span>
-
-              MY EVENTS
-
-            </span>
+            <span>MY EVENTS</span>
 
             <strong>
-
               {dashboard?.events ??
-
                 events.length ??
-
                 0}
-
             </strong>
-
           </div>
-
         </div>
 
         <div className="organizer-stat-card">
-
           <div className="organizer-stat-icon blue">
-
             ▰
-
           </div>
 
           <div>
-
-            <span>
-
-              TOTAL BOOKINGS
-
-            </span>
+            <span>TOTAL BOOKINGS</span>
 
             <strong>
-
               {bookingStats?.totalBookings ??
-
                 dashboard?.bookings ??
-
                 0}
-
             </strong>
-
           </div>
-
         </div>
 
         <div className="organizer-stat-card">
-
           <div className="organizer-stat-icon green">
-
             ₹
-
           </div>
 
           <div>
-
-            <span>
-
-              TOTAL REVENUE
-
-            </span>
+            <span>TOTAL REVENUE</span>
 
             <strong>
-
               ₹
-
               {formatMoney(
-
-                bookingStats?.totalRevenue ??
-
-                0
-
+                bookingStats?.totalRevenue ?? 0
               )}
-
             </strong>
-
           </div>
-
         </div>
 
         <div className="organizer-stat-card">
-
           <div className="organizer-stat-icon yellow">
-
             ◆
-
           </div>
 
           <div>
-
-            <span>
-
-              SEATS SOLD
-
-            </span>
+            <span>SEATS SOLD</span>
 
             <strong>
-
               {bookingStats?.totalSeatsSold ??
-
                 dashboard?.confirmedBookings ??
-
                 0}
-
             </strong>
-
           </div>
-
         </div>
 
       </section>
 
-      {/* =========================================
-
-          MY EVENTS
-
-      ========================================== */}
+      {/* MY EVENTS */}
 
       <section className="organizer-section">
 
         <div className="organizer-section-heading">
 
           <div>
+            <span>YOUR EVENTS</span>
 
-            <span>
-
-              YOUR EVENTS
-
-            </span>
-
-            <h2>
-
-              My Events
-
-            </h2>
+            <h2>My Events</h2>
 
             <p>
-
               All events created by your organizer
-
               account.
-
             </p>
-
           </div>
 
           <div className="organizer-event-count">
-
             {events.length} Events
-
           </div>
 
         </div>
@@ -1113,35 +691,23 @@ export default function OrganizerDashboard() {
           <div className="organizer-empty">
 
             <div className="organizer-empty-icon">
-
               ✦
-
             </div>
 
             <h3>
-
               No events yet
-
             </h3>
 
             <p>
-
               Create your first event and start
-
               managing bookings.
-
             </p>
 
             <button
-
               type="button"
-
               onClick={openCreateModal}
-
             >
-
               Create Your First Event
-
             </button>
 
           </div>
@@ -1153,115 +719,64 @@ export default function OrganizerDashboard() {
             {events.map((event) => (
 
               <article
-
                 className="organizer-event-card"
-
                 key={event.id}
-
               >
 
                 <div className="organizer-event-top">
 
                   <div className="organizer-event-icon">
-
-                    {eventIcon(
-
-                      event.eventType
-
-                    )}
-
+                    {eventIcon(event.eventType)}
                   </div>
 
                   <span
-
-                    className={
-
-                      `organizer-status ${statusClass(
-
-                        event.status
-
-                      )}`
-
-                    }
-
+                    className={`organizer-status ${statusClass(
+                      event.status
+                    )}`}
                   >
-
-                    {event.status
-
-                      ?.replaceAll("\\\_", " ")}
-
+                    {formatLabel(event.status)}
                   </span>
 
                 </div>
 
                 <div className="organizer-event-type">
-
-                  {event.eventType
-
-                    ?.replaceAll("\\\_", " ")}
-
+                  {formatLabel(event.eventType)}
                 </div>
 
                 <h3>
-
                   {event.title}
-
                 </h3>
 
                 <p className="organizer-event-description">
-
                   {event.description ||
-
                     "No description available."}
-
                 </p>
 
                 <div className="organizer-event-details">
 
                   <div>
-
                     <span>📍</span>
 
                     <p>
-
                       {event.city ||
-
                         "Location not available"}
-
                     </p>
-
                   </div>
 
                   <div>
-
                     <span>📅</span>
 
                     <p>
-
-                      {formatDate(
-
-                        event.startTime
-
-                      )}
-
+                      {formatDate(event.startTime)}
                     </p>
-
                   </div>
 
                   <div>
-
                     <span>⏰</span>
 
                     <p>
-
-                      {formatTime(
-
-                        event.startTime
-
-                      )}
-
+                      {formatTime(event.startTime)}
                     </p>
-
                   </div>
 
                 </div>
@@ -1269,69 +784,44 @@ export default function OrganizerDashboard() {
                 <div className="organizer-event-footer">
 
                   <div>
-
                     <small>
-
                       Starting from
-
                     </small>
 
                     <strong>
-
                       ₹
-
-                      {formatMoney(
-
-                        event.basePrice
-
-                      )}
-
+                      {formatMoney(event.basePrice)}
                     </strong>
-
                   </div>
 
                   <div className="organizer-event-actions">
 
                     <div className="organizer-event-id">
-
-                    Event #{event.id}
-
-                  </div>
-
-                 <button
-
-  type="button"
-
-  className="organizer-view-bookings-btn"
-
-  onMouseDown={(e) => e.stopPropagation()}
-
-  onClick={(e) => {
-
-    e.stopPropagation();
-
-    openBookingsModal(event);
-
-  }}
-
->
-
-  👥 View Bookings
-
-</button>
+                      Event #{event.id}
+                    </div>
 
                     <button
-
                       type="button"
-
-                      className="organizer-edit-event-btn"
-
-                      onClick={() => openEditModal(event)}
-
+                      className="organizer-view-bookings-btn"
+                      onMouseDown={(e) =>
+                        e.stopPropagation()
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openBookingsModal(event);
+                      }}
                     >
+                      👥 View Bookings
+                    </button>
 
+                    <button
+                      type="button"
+                      className="organizer-edit-event-btn"
+                      onClick={() =>
+                        openEditModal(event)
+                      }
+                    >
                       ✎ Edit Event
-
                     </button>
 
                   </div>
@@ -1348,38 +838,23 @@ export default function OrganizerDashboard() {
 
       </section>
 
-      {/* =========================================
-
-          PERFORMANCE
-
-      ========================================== */}
+      {/* PERFORMANCE */}
 
       <section className="organizer-section organizer-performance-section">
 
         <div className="organizer-section-heading">
 
           <div>
-
-            <span>
-
-              ANALYTICS
-
-            </span>
+            <span>ANALYTICS</span>
 
             <h2>
-
               Event Performance
-
             </h2>
 
             <p>
-
               Track bookings, seats sold and
-
               revenue for your events.
-
             </p>
-
           </div>
 
         </div>
@@ -1387,9 +862,7 @@ export default function OrganizerDashboard() {
         {performance.length === 0 ? (
 
           <div className="organizer-performance-empty">
-
             No performance data available yet.
-
           </div>
 
         ) : (
@@ -1399,131 +872,69 @@ export default function OrganizerDashboard() {
             {performance.map((item) => (
 
               <div
-
                 className="organizer-performance-row"
-
                 key={item.eventId}
-
               >
 
                 <div className="performance-event-info">
 
                   <div className="performance-event-icon">
-
-                    {eventIcon(
-
-                      item.eventType
-
-                    )}
-
+                    {eventIcon(item.eventType)}
                   </div>
 
                   <div>
-
                     <h3>
-
                       {item.title}
-
                     </h3>
 
                     <span>
-
                       Event #{item.eventId}
-
                     </span>
-
                   </div>
 
                 </div>
 
                 <div className="performance-stat">
-
-                  <span>
-
-                    BOOKINGS
-
-                  </span>
+                  <span>BOOKINGS</span>
 
                   <strong>
-
                     {item.totalBookings ?? 0}
-
                   </strong>
-
                 </div>
 
                 <div className="performance-stat">
-
-                  <span>
-
-                    CONFIRMED
-
-                  </span>
+                  <span>CONFIRMED</span>
 
                   <strong>
-
                     {item.confirmedBookings ?? 0}
-
                   </strong>
-
                 </div>
 
                 <div className="performance-stat">
-
-                  <span>
-
-                    SEATS SOLD
-
-                  </span>
+                  <span>SEATS SOLD</span>
 
                   <strong>
-
                     {item.totalSeatsSold ?? 0}
-
                   </strong>
-
                 </div>
 
                 <div className="performance-stat revenue">
-
-                  <span>
-
-                    REVENUE
-
-                  </span>
+                  <span>REVENUE</span>
 
                   <strong>
-
                     ₹
-
                     {formatMoney(
-
                       item.totalRevenue
-
                     )}
-
                   </strong>
-
                 </div>
 
                 <span
-
-                  className={
-
-                    `organizer-status ${statusClass(
-
-                      item.status
-
-                    )}`
-
-                  }
-
+                  className={`organizer-status ${statusClass(
+                    item.status
+                  )}`}
                 >
-
-                  {item.status
-
-                    ?.replaceAll("\\\_", " ")}
-
+                  {formatLabel(item.status)}
                 </span>
 
               </div>
@@ -1536,93 +947,54 @@ export default function OrganizerDashboard() {
 
       </section>
 
-      {/* =========================================
-
-          CREATE EVENT MODAL
-
-      ========================================== */}
+      {/* CREATE EVENT MODAL */}
 
       {showCreateModal && (
 
         <div
-
           className="create-event-overlay"
-
           onMouseDown={(event) => {
-
             if (
-
               event.target === event.currentTarget &&
-
               !creating
-
             ) {
-
               closeCreateModal();
-
             }
-
           }}
-
         >
 
           <div className="create-event-modal">
 
-            {/* HEADER */}
-
             <div className="create-event-modal-header">
 
               <div>
-
                 <span className="organizer-section-label">
-
                   NEW EVENT
-
                 </span>
 
                 <h2>
-
                   Create Event
-
                 </h2>
 
                 <p>
-
                   Add a new event to your organizer
-
                   account.
-
                 </p>
-
               </div>
 
               <button
-
                 type="button"
-
                 className="create-event-close"
-
                 onClick={closeCreateModal}
-
                 disabled={creating}
-
                 aria-label="Close"
-
               >
-
                 ×
-
               </button>
 
             </div>
 
-            {/* FORM */}
-
-            <form
-
-              onSubmit={handleCreateEvent}
-
-            >
+            <form onSubmit={handleCreateEvent}>
 
               <div className="create-event-form-grid">
 
@@ -1630,34 +1002,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field full">
 
-                  <label htmlFor="event-title">
-
+                  <label htmlFor="create-event-title">
                     Event Title *
-
                   </label>
 
                   <input
-
-                    id="event-title"
-
+                    id="create-event-title"
                     type="text"
-
                     placeholder="Enter event title"
-
                     value={eventForm.title}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "title",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1666,32 +1025,20 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field full">
 
-                  <label htmlFor="event-description">
-
+                  <label htmlFor="create-event-description">
                     Description
-
                   </label>
 
                   <textarea
-
-                    id="event-description"
-
+                    id="create-event-description"
                     placeholder="Describe your event..."
-
                     value={eventForm.description}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "description",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1700,44 +1047,28 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-type">
-
+                  <label htmlFor="create-event-type">
                     Event Type *
-
                   </label>
 
                   <select
-
-                    id="event-type"
-
+                    id="create-event-type"
                     value={eventForm.eventType}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "eventType",
-
                         e.target.value
-
                       )
-
                     }
-
                   >
 
                     {EVENT_TYPES.map((type) => (
 
                       <option
-
                         key={type.value}
-
                         value={type.value}
-
                       >
-
                         {type.label}
-
                       </option>
 
                     ))}
@@ -1750,34 +1081,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-city">
-
+                  <label htmlFor="create-event-city">
                     City *
-
                   </label>
 
                   <input
-
-                    id="event-city"
-
+                    id="create-event-city"
                     type="text"
-
                     placeholder="e.g. Pune"
-
                     value={eventForm.city}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "city",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1786,32 +1104,20 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-start">
-
+                  <label htmlFor="create-event-start">
                     Start Date & Time *
-
                   </label>
 
                   <input
-
-                    id="event-start"
-
+                    id="create-event-start"
                     type="datetime-local"
-
                     value={eventForm.startTime}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "startTime",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1820,32 +1126,20 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-end">
-
+                  <label htmlFor="create-event-end">
                     End Date & Time
-
                   </label>
 
                   <input
-
-                    id="event-end"
-
+                    id="create-event-end"
                     type="datetime-local"
-
                     value={eventForm.endTime}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "endTime",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1854,34 +1148,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-language">
-
+                  <label htmlFor="create-event-language">
                     Language
-
                   </label>
 
                   <input
-
-                    id="event-language"
-
+                    id="create-event-language"
                     type="text"
-
                     placeholder="e.g. Hindi"
-
                     value={eventForm.language}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "language",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1890,34 +1171,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-genre">
-
+                  <label htmlFor="create-event-genre">
                     Genre
-
                   </label>
 
                   <input
-
-                    id="event-genre"
-
+                    id="create-event-genre"
                     type="text"
-
                     placeholder="e.g. Music"
-
                     value={eventForm.genre}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "genre",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1926,34 +1194,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-age">
-
+                  <label htmlFor="create-event-age">
                     Age Rating
-
                   </label>
 
                   <input
-
-                    id="event-age"
-
+                    id="create-event-age"
                     type="text"
-
                     placeholder="e.g. 18+"
-
                     value={eventForm.ageRating}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "ageRating",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -1962,38 +1217,23 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-price">
-
+                  <label htmlFor="create-event-price">
                     Base Price *
-
                   </label>
 
                   <input
-
-                    id="event-price"
-
+                    id="create-event-price"
                     type="number"
-
                     min="0.01"
-
                     step="0.01"
-
                     placeholder="e.g. 499.93"
-
                     value={eventForm.basePrice}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "basePrice",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2002,38 +1242,23 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-tax">
-
+                  <label htmlFor="create-event-tax">
                     Tax Percent
-
                   </label>
 
                   <input
-
-                    id="event-tax"
-
+                    id="create-event-tax"
                     type="number"
-
                     min="0"
-
                     step="0.01"
-
                     placeholder="e.g. 18"
-
                     value={eventForm.taxPercent}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "taxPercent",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2042,43 +1267,52 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-venue">
-
-                    Venue ID *
-
+                  <label htmlFor="create-event-venue">
+                    Venue *
                   </label>
 
-                  <input
-
-                    id="event-venue"
-
-                    type="number"
-
-                    min="1"
-
-                    placeholder="e.g. 1"
-
+                  <select
+                    id="create-event-venue"
                     value={eventForm.venueId}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "venueId",
-
                         e.target.value
-
                       )
-
                     }
+                    required
+                  >
 
-                  />
+                    <option value="">
+                      Select a venue
+                    </option>
+
+                    {venues.map((venue) => (
+
+                      <option
+                        key={venue.id}
+                        value={venue.id}
+                      >
+                        {venue.name}
+                        {venue.city
+                          ? ` • ${venue.city}`
+                          : ""}
+                      </option>
+
+                    ))}
+
+                  </select>
 
                   <small>
-
-                    Enter an existing venue ID.
-
+                    Select the venue where this event
+                    will be conducted.
                   </small>
+
+                  {venues.length === 0 && (
+                    <small>
+                      No active venues available.
+                    </small>
+                  )}
 
                 </div>
 
@@ -2086,34 +1320,21 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field">
 
-                  <label htmlFor="event-poster">
-
+                  <label htmlFor="create-event-poster">
                     Poster URL
-
                   </label>
 
                   <input
-
-                    id="event-poster"
-
+                    id="create-event-poster"
                     type="url"
-
-                    placeholder="https\\\\://..."
-
+                    placeholder="https://..."
                     value={eventForm.posterUrl}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "posterUrl",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2122,114 +1343,68 @@ export default function OrganizerDashboard() {
 
                 <div className="create-event-field full">
 
-                  <label htmlFor="event-banner">
-
+                  <label htmlFor="create-event-banner">
                     Banner URL
-
                   </label>
 
                   <input
-
-                    id="event-banner"
-
+                    id="create-event-banner"
                     type="url"
-
-                    placeholder="https\\\\://..."
-
+                    placeholder="https://..."
                     value={eventForm.bannerUrl}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "bannerUrl",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
 
               </div>
 
-              {/* ERROR */}
-
               {createError && (
-
                 <div className="create-event-message error">
-
                   ⚠️ {createError}
-
                 </div>
-
               )}
-
-              {/* SUCCESS */}
 
               {createSuccess && (
-
                 <div className="create-event-message success">
-
                   ✓ {createSuccess}
-
                 </div>
-
               )}
-
-              {/* ACTIONS */}
 
               <div className="create-event-actions">
 
                 <button
-
                   type="button"
-
                   className="create-event-cancel"
-
                   onClick={closeCreateModal}
-
                   disabled={creating}
-
                 >
-
                   Cancel
-
                 </button>
 
                 <button
-
                   type="submit"
-
                   className="create-event-submit"
-
-                  disabled={creating}
-
+                  disabled={
+                    creating || venues.length === 0
+                  }
                 >
 
                   {creating ? (
-
                     <>
-
                       <span className="create-event-small-spinner"></span>
-
                       Creating Event...
-
                     </>
-
                   ) : (
-
                     <>
-
                       <span>＋</span>
-
                       Create Event
-
                     </>
-
                   )}
 
                 </button>
@@ -2244,87 +1419,53 @@ export default function OrganizerDashboard() {
 
       )}
 
+      {/* EDIT EVENT MODAL */}
+
       {showEditModal && (
 
         <div
-
           className="edit-event-overlay"
-
           onMouseDown={(event) => {
-
             if (
-
               event.target === event.currentTarget &&
-
               !editing
-
             ) {
-
               closeEditModal();
-
             }
-
           }}
-
         >
 
           <div className="edit-event-modal">
 
-            {/* HEADER */}
-
             <div className="edit-event-modal-header">
 
               <div>
-
                 <span className="organizer-section-label">
-
                   EDIT EVENT
-
                 </span>
 
                 <h2>
-
                   Edit Event
-
                 </h2>
 
                 <p>
-
-                  Add a new event to your organizer
-
-                  account.
-
+                  Update your event information.
                 </p>
-
               </div>
 
               <button
-
                 type="button"
-
                 className="edit-event-close"
-
                 onClick={closeEditModal}
-
                 disabled={editing}
-
                 aria-label="Close"
-
               >
-
                 ×
-
               </button>
 
             </div>
 
-            {/* FORM */}
-
-            <form
-
-              onSubmit={handleEditEvent}
-
-            >
+            <form onSubmit={handleEditEvent}>
 
               <div className="edit-event-form-grid">
 
@@ -2332,34 +1473,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field full">
 
-                  <label htmlFor="event-title">
-
+                  <label htmlFor="edit-event-title">
                     Event Title *
-
                   </label>
 
                   <input
-
-                    id="event-title"
-
+                    id="edit-event-title"
                     type="text"
-
                     placeholder="Enter event title"
-
                     value={eventForm.title}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "title",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2368,32 +1496,20 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field full">
 
-                  <label htmlFor="event-description">
-
+                  <label htmlFor="edit-event-description">
                     Description
-
                   </label>
 
                   <textarea
-
-                    id="event-description"
-
+                    id="edit-event-description"
                     placeholder="Describe your event..."
-
                     value={eventForm.description}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "description",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2402,44 +1518,28 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-type">
-
+                  <label htmlFor="edit-event-type">
                     Event Type *
-
                   </label>
 
                   <select
-
-                    id="event-type"
-
+                    id="edit-event-type"
                     value={eventForm.eventType}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "eventType",
-
                         e.target.value
-
                       )
-
                     }
-
                   >
 
                     {EVENT_TYPES.map((type) => (
 
                       <option
-
                         key={type.value}
-
                         value={type.value}
-
                       >
-
                         {type.label}
-
                       </option>
 
                     ))}
@@ -2452,34 +1552,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-city">
-
+                  <label htmlFor="edit-event-city">
                     City *
-
                   </label>
 
                   <input
-
-                    id="event-city"
-
+                    id="edit-event-city"
                     type="text"
-
                     placeholder="e.g. Pune"
-
                     value={eventForm.city}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "city",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2488,32 +1575,20 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-start">
-
+                  <label htmlFor="edit-event-start">
                     Start Date & Time *
-
                   </label>
 
                   <input
-
-                    id="event-start"
-
+                    id="edit-event-start"
                     type="datetime-local"
-
                     value={eventForm.startTime}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "startTime",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2522,32 +1597,20 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-end">
-
+                  <label htmlFor="edit-event-end">
                     End Date & Time
-
                   </label>
 
                   <input
-
-                    id="event-end"
-
+                    id="edit-event-end"
                     type="datetime-local"
-
                     value={eventForm.endTime}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "endTime",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2556,34 +1619,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-language">
-
+                  <label htmlFor="edit-event-language">
                     Language
-
                   </label>
 
                   <input
-
-                    id="event-language"
-
+                    id="edit-event-language"
                     type="text"
-
                     placeholder="e.g. Hindi"
-
                     value={eventForm.language}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "language",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2592,34 +1642,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-genre">
-
+                  <label htmlFor="edit-event-genre">
                     Genre
-
                   </label>
 
                   <input
-
-                    id="event-genre"
-
+                    id="edit-event-genre"
                     type="text"
-
                     placeholder="e.g. Music"
-
                     value={eventForm.genre}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "genre",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2628,34 +1665,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-age">
-
+                  <label htmlFor="edit-event-age">
                     Age Rating
-
                   </label>
 
                   <input
-
-                    id="event-age"
-
+                    id="edit-event-age"
                     type="text"
-
                     placeholder="e.g. 18+"
-
                     value={eventForm.ageRating}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "ageRating",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2664,38 +1688,23 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-price">
-
+                  <label htmlFor="edit-event-price">
                     Base Price *
-
                   </label>
 
                   <input
-
-                    id="event-price"
-
+                    id="edit-event-price"
                     type="number"
-
                     min="0.01"
-
                     step="0.01"
-
                     placeholder="e.g. 499.93"
-
                     value={eventForm.basePrice}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "basePrice",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2704,38 +1713,23 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-tax">
-
+                  <label htmlFor="edit-event-tax">
                     Tax Percent
-
                   </label>
 
                   <input
-
-                    id="event-tax"
-
+                    id="edit-event-tax"
                     type="number"
-
                     min="0"
-
                     step="0.01"
-
                     placeholder="e.g. 18"
-
                     value={eventForm.taxPercent}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "taxPercent",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2744,42 +1738,45 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-venue">
-
-                    Venue ID *
-
+                  <label htmlFor="edit-event-venue">
+                    Venue *
                   </label>
 
-                  <input
-
-                    id="event-venue"
-
-                    type="number"
-
-                    min="1"
-
-                    placeholder="e.g. 1"
-
+                  <select
+                    id="edit-event-venue"
                     value={eventForm.venueId}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "venueId",
-
                         e.target.value
-
                       )
-
                     }
+                    required
+                  >
 
-                  />
+                    <option value="">
+                      Select a venue
+                    </option>
+
+                    {venues.map((venue) => (
+
+                      <option
+                        key={venue.id}
+                        value={venue.id}
+                      >
+                        {venue.name}
+                        {venue.city
+                          ? ` • ${venue.city}`
+                          : ""}
+                      </option>
+
+                    ))}
+
+                  </select>
 
                   <small>
-
-                    Enter an existing venue ID.
-
+                    Select the venue where this event
+                    will be conducted.
                   </small>
 
                 </div>
@@ -2788,34 +1785,21 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field">
 
-                  <label htmlFor="event-poster">
-
+                  <label htmlFor="edit-event-poster">
                     Poster URL
-
                   </label>
 
                   <input
-
-                    id="event-poster"
-
+                    id="edit-event-poster"
                     type="url"
-
-                    placeholder="https\\\\://..."
-
+                    placeholder="https://..."
                     value={eventForm.posterUrl}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "posterUrl",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
@@ -2824,114 +1808,68 @@ export default function OrganizerDashboard() {
 
                 <div className="edit-event-field full">
 
-                  <label htmlFor="event-banner">
-
+                  <label htmlFor="edit-event-banner">
                     Banner URL
-
                   </label>
 
                   <input
-
-                    id="event-banner"
-
+                    id="edit-event-banner"
                     type="url"
-
-                    placeholder="https\\\\://..."
-
+                    placeholder="https://..."
                     value={eventForm.bannerUrl}
-
                     onChange={(e) =>
-
                       updateForm(
-
                         "bannerUrl",
-
                         e.target.value
-
                       )
-
                     }
-
                   />
 
                 </div>
 
               </div>
 
-              {/* ERROR */}
-
               {editError && (
-
                 <div className="edit-event-message error">
-
                   ⚠️ {editError}
-
                 </div>
-
               )}
-
-              {/* SUCCESS */}
 
               {editSuccess && (
-
                 <div className="edit-event-message success">
-
                   ✓ {editSuccess}
-
                 </div>
-
               )}
-
-              {/* ACTIONS */}
 
               <div className="edit-event-actions">
 
                 <button
-
                   type="button"
-
                   className="edit-event-cancel"
-
                   onClick={closeEditModal}
-
                   disabled={editing}
-
                 >
-
                   Cancel
-
                 </button>
 
                 <button
-
                   type="submit"
-
                   className="edit-event-submit"
-
-                  disabled={editing}
-
+                  disabled={
+                    editing || venues.length === 0
+                  }
                 >
 
                   {editing ? (
-
                     <>
-
                       <span className="edit-event-small-spinner"></span>
-
                       Saving Changes...
-
                     </>
-
                   ) : (
-
                     <>
-
-                      <span>＋</span>
-
-                      Edit Event
-
+                      <span>✓</span>
+                      Save Changes
                     </>
-
                   )}
 
                 </button>
@@ -2946,22 +1884,20 @@ export default function OrganizerDashboard() {
 
       )}
 
-      {/* =========================================
-          EVENT BOOKINGS MODAL
-      ========================================== */}
+      {/* EVENT BOOKINGS MODAL */}
 
       {showBookingsModal && (
 
         <div
-
           className="organizer-bookings-overlay"
-
           onMouseDown={(event) => {
-
-            if (event.target === event.currentTarget && !bookingsLoading) closeBookingsModal();
-
+            if (
+              event.target === event.currentTarget &&
+              !bookingsLoading
+            ) {
+              closeBookingsModal();
+            }
           }}
-
         >
 
           <div className="organizer-bookings-modal">
@@ -2970,15 +1906,31 @@ export default function OrganizerDashboard() {
 
               <div>
 
-                <span className="organizer-section-label">EVENT BOOKINGS</span>
+                <span className="organizer-section-label">
+                  EVENT BOOKINGS
+                </span>
 
-                <h2>{selectedBookingEvent?.title || "Event Bookings"}</h2>
+                <h2>
+                  {selectedBookingEvent?.title ||
+                    "Event Bookings"}
+                </h2>
 
-                <p>View customers, seats, payment and booking status.</p>
+                <p>
+                  View customers, seats, payment and
+                  booking status.
+                </p>
 
               </div>
 
-              <button type="button" className="organizer-bookings-close" onClick={closeBookingsModal} disabled={bookingsLoading} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="organizer-bookings-close"
+                onClick={closeBookingsModal}
+                disabled={bookingsLoading}
+                aria-label="Close"
+              >
+                ×
+              </button>
 
             </div>
 
@@ -2986,13 +1938,40 @@ export default function OrganizerDashboard() {
 
               <div className="organizer-booking-summary-grid">
 
-                <div className="organizer-booking-summary-card"><span>Total Bookings</span><strong>{bookingSummary.totalBookings ?? 0}</strong></div>
+                <div className="organizer-booking-summary-card">
+                  <span>Total Bookings</span>
 
-                <div className="organizer-booking-summary-card confirmed"><span>Confirmed</span><strong>{bookingSummary.confirmedBookings ?? 0}</strong></div>
+                  <strong>
+                    {bookingSummary.totalBookings ?? 0}
+                  </strong>
+                </div>
 
-                <div className="organizer-booking-summary-card seats"><span>Seats Sold</span><strong>{bookingSummary.totalSeatsSold ?? 0}</strong></div>
+                <div className="organizer-booking-summary-card confirmed">
+                  <span>Confirmed</span>
 
-                <div className="organizer-booking-summary-card revenue"><span>Revenue</span><strong>₹{formatMoney(bookingSummary.totalRevenue ?? 0)}</strong></div>
+                  <strong>
+                    {bookingSummary.confirmedBookings ?? 0}
+                  </strong>
+                </div>
+
+                <div className="organizer-booking-summary-card seats">
+                  <span>Seats Sold</span>
+
+                  <strong>
+                    {bookingSummary.totalSeatsSold ?? 0}
+                  </strong>
+                </div>
+
+                <div className="organizer-booking-summary-card revenue">
+                  <span>Revenue</span>
+
+                  <strong>
+                    ₹
+                    {formatMoney(
+                      bookingSummary.totalRevenue ?? 0
+                    )}
+                  </strong>
+                </div>
 
               </div>
 
@@ -3000,15 +1979,44 @@ export default function OrganizerDashboard() {
 
             {bookingsLoading ? (
 
-              <div className="organizer-bookings-loading"><span className="organizer-bookings-spinner"></span><p>Loading booking details...</p></div>
+              <div className="organizer-bookings-loading">
+
+                <span className="organizer-bookings-spinner"></span>
+
+                <p>
+                  Loading booking details...
+                </p>
+
+              </div>
 
             ) : bookingsError ? (
 
-              <div className="organizer-bookings-error"><span>!</span><p>{bookingsError}</p></div>
+              <div className="organizer-bookings-error">
+
+                <span>!</span>
+
+                <p>
+                  {bookingsError}
+                </p>
+
+              </div>
 
             ) : eventBookings.length === 0 ? (
 
-              <div className="organizer-bookings-empty"><div>🎟️</div><h3>No bookings yet</h3><p>Customers who book this event will appear here.</p></div>
+              <div className="organizer-bookings-empty">
+
+                <div>🎟️</div>
+
+                <h3>
+                  No bookings yet
+                </h3>
+
+                <p>
+                  Customers who book this event
+                  will appear here.
+                </p>
+
+              </div>
 
             ) : (
 
@@ -3016,36 +2024,109 @@ export default function OrganizerDashboard() {
 
                 <table className="organizer-bookings-table">
 
-                  <thead><tr><th>Booking</th><th>Customer</th><th>Seats</th><th>Amount</th><th>Status</th></tr></thead>
+                  <thead>
+
+                    <tr>
+                      <th>Booking</th>
+                      <th>Customer</th>
+                      <th>Seats</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+
+                  </thead>
 
                   <tbody>
 
                     {eventBookings.map((booking) => {
 
-                      const customerName = booking.user?.name || booking.user?.email || "Customer";
+                      const customerName =
+                        booking.user?.name ||
+                        booking.user?.email ||
+                        "Customer";
 
-                      const customerEmail = booking.user?.email || "";
+                      const customerEmail =
+                        booking.user?.email || "";
 
-                      const seatList = Array.isArray(booking.seats) ? booking.seats.map((item) => item?.seat?.seatNumber || item?.seat?.label || item?.seatNumber || "Seat").join(", ") : "-";
+                      const seatList =
+                        Array.isArray(booking.seats)
+                          ? booking.seats
+                              .map(
+                                (item) =>
+                                  item?.seat?.seatNumber ||
+                                  item?.seat?.label ||
+                                  item?.seatNumber ||
+                                  "Seat"
+                              )
+                              .join(", ")
+                          : "-";
 
-                      const bookingStatus = booking.status || "UNKNOWN";
+                      const bookingStatus =
+                        booking.status || "UNKNOWN";
 
                       return (
+                        <tr
+                          key={
+                            booking.id ||
+                            booking.bookingCode
+                          }
+                        >
 
-                        <tr key={booking.id || booking.bookingCode}>
+                          <td>
+                            <strong>
+                              {booking.bookingCode ||
+                                `#${booking.id}`}
+                            </strong>
 
-                          <td><strong>{booking.bookingCode || `#${booking.id}`}</strong><small>{booking.bookedAt ? formatDate(booking.bookedAt) : ""}</small></td>
+                            <small>
+                              {booking.bookedAt
+                                ? formatDate(
+                                    booking.bookedAt
+                                  )
+                                : ""}
+                            </small>
+                          </td>
 
-                          <td><strong>{customerName}</strong><small>{customerEmail}</small></td>
+                          <td>
+                            <strong>
+                              {customerName}
+                            </strong>
 
-                          <td><span className="organizer-seat-list">{seatList || "-"}</span></td>
+                            <small>
+                              {customerEmail}
+                            </small>
+                          </td>
 
-                          <td><strong>₹{formatMoney(booking.totalAmount ?? 0)}</strong></td>
+                          <td>
+                            <span className="organizer-seat-list">
+                              {seatList || "-"}
+                            </span>
+                          </td>
 
-                          <td><span className={`organizer-booking-status ${String(bookingStatus).toLowerCase()}`}>{String(bookingStatus).replaceAll("\_", " ")}</span></td>
+                          <td>
+                            <strong>
+                              ₹
+                              {formatMoney(
+                                booking.totalAmount ?? 0
+                              )}
+                            </strong>
+                          </td>
+
+                          <td>
+
+                            <span
+                              className={`organizer-booking-status ${String(
+                                bookingStatus
+                              ).toLowerCase()}`}
+                            >
+                              {formatLabel(
+                                bookingStatus
+                              )}
+                            </span>
+
+                          </td>
 
                         </tr>
-
                       );
 
                     })}

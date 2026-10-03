@@ -17544,3 +17544,47 @@ body:has(.organizer-page) {
     grid-template-columns:1fr;
   }
 }
+/* ===== VENUE INFO ===== */
+
+.venue-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.08);
+  color: #c4b5fd;
+  font-size: 13px;
+}
+
+.venue-info span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ===== VENUE DROPDOWN ===== */
+
+.create-event-field select,
+.edit-event-field select {
+  cursor: pointer;
+}
+
+.create-event-field select:focus,
+.edit-event-field select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+/* ===== VENUE HELP TEXT ===== */
+
+.create-event-field small,
+.edit-event-field small {
+  display: block;
+  margin-top: 7px;
+  line-height: 1.5;
+  opacity: 0.7;
+}
